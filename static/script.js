@@ -25,7 +25,7 @@ promptInput.addEventListener("keydown", async (e) => {
     }
 
     // Start audio and word-by-word typing together
-    player.src = "/audio?" + Date.now(); // cache-bust so it reloads each time
+    player.src = data.audio;
     player.play();
 
     const words = data.reply.split(" ");

@@ -36,9 +36,9 @@ def chat():
     if fact:
         memory.add(fact)
 
-    context = web_search(prompt) if needs_search(prompt) else ""
+    context, search_error = web_search(prompt) if needs_search(prompt) else ("", None)
     recalled = memory.relevant(prompt)
-    reply = get_response(prompt, HISTORY, context, recalled)
+    reply = get_response(prompt, HISTORY, context, recalled, search_error)
 
     HISTORY.append({"role": "user", "content": prompt})
     HISTORY.append({"role": "assistant", "content": reply})

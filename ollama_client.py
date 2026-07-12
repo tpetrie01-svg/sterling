@@ -5,7 +5,7 @@ OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "sterling"  # match whatever `ollama list` shows
 
 
-def get_response(prompt: str, history: list, search_context: str = "", memories: list = None) -> str:
+def get_response(prompt: str, history: list, search_context: str = "", memories: list = None, search_error: str = None) -> str:
     """history is a list of {"role": "user"|"assistant", "content": str} turns,
     oldest first. Mutated by the caller between calls, not by this function."""
     messages = list(history)
@@ -25,6 +25,14 @@ def get_response(prompt: str, history: list, search_context: str = "", memories:
             "content": (
                 f"Web search results for the next question:\n{search_context}\n\n"
                 f"Use them only if relevant, and don't mention the search itself."
+            ),
+        })
+    elif search_error:
+        messages.append({
+            "role": "system",
+            "content": (
+                f"You tried to search the web for the next question but it failed: {search_error}. "
+                f"Briefly tell the user you couldn't look this up right now, then answer from what you already know."
             ),
         })
     messages.append({"role": "user", "content": prompt})

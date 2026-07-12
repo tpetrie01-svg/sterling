@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory, send_file, abort
 from ollama_client import get_response
 from voice import synthesize, get_wav_duration
 from stt import transcribe
+from search import needs_search, web_search
 from pathlib import Path
 import tempfile
 import webbrowser
@@ -27,7 +28,8 @@ def chat():
     if not prompt:
         return jsonify({"error": "empty prompt"}), 400
 
-    reply = get_response(prompt)
+    context = web_search(prompt) if needs_search(prompt) else ""
+    reply = get_response(prompt, context)
     wav_path = synthesize(reply)
     duration = get_wav_duration(wav_path)
 

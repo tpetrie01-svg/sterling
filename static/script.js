@@ -12,6 +12,7 @@ mic.addEventListener("click", async () => {
     recorder.ondataavailable = (e) => chunks.push(e.data);
     recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
+        mic.textContent = "🎤";
         const fd = new FormData();
         fd.append("audio", new Blob(chunks, { type: "audio/webm" }), "clip.webm");
         const res = await fetch("/stt", { method: "POST", body: fd });
@@ -21,12 +22,17 @@ mic.addEventListener("click", async () => {
     };
     recorder.start();
     mic.textContent = "⏹";
+});
 
 promptInput.addEventListener("keydown", async (e) => {
     if (e.key !== "Enter" || !promptInput.value.trim()) return;
 
     const prompt = promptInput.value.trim();
     promptInput.value = "";
+    send(prompt);
+});
+
+async function send(prompt) {
     promptInput.disabled = true;
 
     log.innerHTML += `<div class="you">You: ${prompt}</div>`;
@@ -64,4 +70,4 @@ promptInput.addEventListener("keydown", async (e) => {
 
     promptInput.disabled = false;
     promptInput.focus();
-});
+}

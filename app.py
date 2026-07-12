@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort, Response
 from ollama_client import get_response
 from voice import synthesize, get_wav_duration
+from stt import transcribe
 from pathlib import Path
 import tempfile
 import webbrowser
@@ -34,6 +35,20 @@ def chat():
     CLIPS[token] = wav_path
 
     return jsonify({"reply": reply, "duration": duration, "audio": f"/audio/{token}"})
+
+@app.route("/stt", methods=["POST"])
+def stt():
+    f = request.files.get("audio")
+    if not f:
+        return jsonify({"error": "no audio"}), 400
+    fd, path = tempfile.mkstemp(prefix="stt-", suffix=".webm")
+    os.close(fd)
+    p = Path(path)
+    f.save(p)
+    try:
+        return jsonify({"text": transcribe(p)})
+    finally:
+        p.unlink(missing_ok=True)
 
 
 @app.route("/audio/<token>")

@@ -1,6 +1,26 @@
 const log = document.getElementById("log");
 const promptInput = document.getElementById("prompt");
 const player = document.getElementById("player");
+let recorder, chunks = [];
+
+mic.addEventListener("click", async () => {
+    if (recorder?.state === "recording") { recorder.stop(); return; }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recorder = new MediaRecorder(stream);
+    chunks = [];
+    recorder.ondataavailable = (e) => chunks.push(e.data);
+    recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const fd = new FormData();
+        fd.append("audio", new Blob(chunks, { type: "audio/webm" }), "clip.webm");
+        const res = await fetch("/stt", { method: "POST", body: fd });
+        const { text, error } = await res.json();
+        if (text) send(text);
+        else log.innerHTML += `<div>STT error: ${error}</div>`;
+    };
+    recorder.start();
+    mic.textContent = "⏹";
 
 promptInput.addEventListener("keydown", async (e) => {
     if (e.key !== "Enter" || !promptInput.value.trim()) return;

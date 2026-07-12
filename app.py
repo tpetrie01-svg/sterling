@@ -3,6 +3,7 @@ from ollama_client import get_response
 from voice import synthesize, get_wav_duration
 from stt import transcribe
 from search import needs_search, web_search
+import memory
 from pathlib import Path
 import tempfile
 import webbrowser
@@ -16,6 +17,9 @@ app = Flask(__name__, static_folder="static")
 TMP_ROOT = Path(tempfile.gettempdir()).resolve()
 CLIPS = {}  # token -> Path
 
+HISTORY = []  # list of {"role": "user"|"assistant", "content": str}, oldest first
+MAX_TURNS = 12  # keep the last N user+assistant pairs
+
 
 @app.route("/")
 def index():
@@ -28,8 +32,18 @@ def chat():
     if not prompt:
         return jsonify({"error": "empty prompt"}), 400
 
+    fact = memory.capture(prompt)
+    if fact:
+        memory.add(fact)
+
     context = web_search(prompt) if needs_search(prompt) else ""
-    reply = get_response(prompt, context)
+    recalled = memory.relevant(prompt)
+    reply = get_response(prompt, HISTORY, context, recalled)
+
+    HISTORY.append({"role": "user", "content": prompt})
+    HISTORY.append({"role": "assistant", "content": reply})
+    del HISTORY[:-MAX_TURNS * 2]
+
     wav_path = synthesize(reply)
     duration = get_wav_duration(wav_path)
 
@@ -37,6 +51,13 @@ def chat():
     CLIPS[token] = wav_path
 
     return jsonify({"reply": reply, "duration": duration, "audio": f"/audio/{token}"})
+
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    HISTORY.clear()
+    return jsonify({"ok": True})
+
 
 @app.route("/stt", methods=["POST"])
 def stt():

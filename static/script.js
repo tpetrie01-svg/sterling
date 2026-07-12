@@ -24,6 +24,11 @@ mic.addEventListener("click", async () => {
     mic.textContent = "⏹";
 });
 
+reset.addEventListener("click", async () => {
+    await fetch("/reset", { method: "POST" });
+    log.innerHTML = "";
+});
+
 promptInput.addEventListener("keydown", async (e) => {
     if (e.key !== "Enter" || !promptInput.value.trim()) return;
 

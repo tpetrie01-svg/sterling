@@ -3,6 +3,36 @@ const promptInput = document.getElementById("prompt");
 const player = document.getElementById("player");
 let recorder, chunks = [];
 
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function renderMarkdown(text) {
+    let html = escapeHtml(text);
+
+    html = html.replace(/```(?:\w+\n)?([\s\S]*?)```/g, (_, code) => `<pre><code>${code}</code></pre>`);
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    html = html.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
+    html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+    html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+    html = html.replace(/(?<!\w)_([^_]+)_(?!\w)/g, "<em>$1</em>");
+    html = html.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+    html = html.replace(/^###### (.*)$/gm, "<h6>$1</h6>");
+    html = html.replace(/^##### (.*)$/gm, "<h5>$1</h5>");
+    html = html.replace(/^#### (.*)$/gm, "<h4>$1</h4>");
+    html = html.replace(/^### (.*)$/gm, "<h3>$1</h3>");
+    html = html.replace(/^## (.*)$/gm, "<h2>$1</h2>");
+    html = html.replace(/^# (.*)$/gm, "<h1>$1</h1>");
+    html = html.replace(/^\s*[-*+] (.*)$/gm, "• $1");
+    html = html.replace(/\n/g, "<br>");
+    return html;
+}
+
 mic.addEventListener("click", async () => {
     if (recorder?.state === "recording") { recorder.stop(); return; }
 
@@ -64,11 +94,12 @@ async function send(prompt) {
 
     const sterlingLine = document.createElement("div");
     sterlingLine.className = "sterling";
-    sterlingLine.textContent = "Sterling: ";
     log.appendChild(sterlingLine);
 
+    let shown = "";
     for (let i = 0; i < words.length; i++) {
-        sterlingLine.textContent += (i > 0 ? " " : "") + words[i];
+        shown += (i > 0 ? " " : "") + words[i];
+        sterlingLine.innerHTML = "Sterling: " + renderMarkdown(shown);
         log.scrollTop = log.scrollHeight;
         await new Promise(r => setTimeout(r, delay));
     }

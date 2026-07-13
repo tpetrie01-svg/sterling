@@ -30,6 +30,7 @@ def strip_markdown(text: str) -> str:
     text = re.sub(r"^\s{0,3}([-*_])\s*(\1\s*){2,}$", "", text, flags=re.MULTILINE)  # hr
     text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)       # unordered list markers
     text = re.sub(r"^\s*\d+\.\s+", "", text, flags=re.MULTILINE)       # ordered list markers
+    text = re.sub(r"[-‐-―]", " ", text)                      # hyphens/dashes
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()

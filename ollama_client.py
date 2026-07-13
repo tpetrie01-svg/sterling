@@ -1,6 +1,7 @@
 # ollama_client.py
 from datetime import datetime
 from pathlib import Path
+import json
 import re
 import requests
 
@@ -57,3 +58,42 @@ def get_response(prompt: str, history: list, search_context: str = "", memories:
     })
     r.raise_for_status()
     return r.json()["message"]["content"]
+
+
+_FACT_EXTRACT_SYSTEM = (
+    "You extract durable personal facts about the user worth remembering across "
+    "future sessions: identity, location, relationships, ongoing projects, "
+    "recurring preferences or constraints. Ignore small talk, one-off questions, "
+    "and anything not clearly stated by the user.\n"
+    'Respond with ONLY a JSON object: {"facts": [{"text": "<fact as a standalone '
+    'sentence>", "critical": true|false}]}. Mark critical=true only for core '
+    "identity info (name, home location, relationships). If nothing is worth "
+    'remembering, respond with {"facts": []}.'
+)
+
+
+def infer_facts(prompt: str, reply: str) -> list[dict]:
+    """Ask the model whether this exchange contains a durable fact worth
+    remembering, without the user having to say "remember...". Best-effort:
+    returns [] on any parsing/network failure rather than raising."""
+    messages = [
+        {"role": "system", "content": _FACT_EXTRACT_SYSTEM},
+        {"role": "user", "content": f"User said: {prompt}\nAssistant replied: {reply}"},
+    ]
+    try:
+        r = requests.post(OLLAMA_URL, json={
+            "model": MODEL_NAME,
+            "messages": messages,
+            "stream": False,
+            "format": "json",
+        }, timeout=15)
+        r.raise_for_status()
+        data = json.loads(r.json()["message"]["content"])
+        facts = data.get("facts", [])
+        return [
+            {"text": f["text"].strip(), "critical": bool(f.get("critical"))}
+            for f in facts
+            if isinstance(f, dict) and f.get("text", "").strip()
+        ]
+    except Exception:
+        return []

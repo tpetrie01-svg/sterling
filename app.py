@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort, Response
-from ollama_client import get_response
+from ollama_client import get_response, infer_facts
 from voice import synthesize, get_wav_duration
 from stt import transcribe
 from search import needs_search, web_search
@@ -27,6 +27,13 @@ def index():
     return send_from_directory("static", "index.html")
 
 
+def _remember_async(prompt: str, reply: str) -> None:
+    """Runs off the request thread so implicit-memory inference never adds
+    latency to the voice response."""
+    for fact in infer_facts(prompt, reply):
+        memory.add(fact["text"], critical=fact["critical"])
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     prompt = request.json.get("prompt", "").strip()
@@ -46,6 +53,8 @@ def chat():
 
     recalled = memory.relevant(prompt)
     reply = get_response(prompt, HISTORY, search_context, recalled, search_error, weather_context, weather_error)
+
+    threading.Thread(target=_remember_async, args=(prompt, reply), daemon=True).start()
 
     HISTORY.append({"role": "user", "content": prompt})
     HISTORY.append({"role": "assistant", "content": reply})

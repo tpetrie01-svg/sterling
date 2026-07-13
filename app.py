@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort, Response
-from ollama_client import get_response, infer_facts
+from ollama_client import get_response, infer_facts, get_context_length
 from voice import synthesize, get_wav_duration
 from stt import transcribe
 from search import needs_search, web_search
@@ -52,7 +52,7 @@ def chat():
         search_context, search_error = web_search(prompt) if needs_search(prompt) else ("", None)
 
     recalled = memory.relevant(prompt)
-    reply = get_response(prompt, HISTORY, search_context, recalled, search_error, weather_context, weather_error)
+    reply, context_used = get_response(prompt, HISTORY, search_context, recalled, search_error, weather_context, weather_error)
 
     threading.Thread(target=_remember_async, args=(prompt, reply), daemon=True).start()
 
@@ -66,7 +66,13 @@ def chat():
     token = uuid.uuid4().hex
     CLIPS[token] = wav_path
 
-    return jsonify({"reply": reply, "duration": duration, "audio": f"/audio/{token}"})
+    return jsonify({
+        "reply": reply,
+        "duration": duration,
+        "audio": f"/audio/{token}",
+        "context_used": context_used,
+        "context_max": get_context_length(),
+    })
 
 
 @app.route("/reset", methods=["POST"])

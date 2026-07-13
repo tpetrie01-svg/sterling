@@ -3,6 +3,16 @@ const promptInput = document.getElementById("prompt");
 const player = document.getElementById("player");
 let recorder, chunks = [];
 
+const SPINNER_FRAMES = ["|", "/", "-", "\\"];
+let lastContext = { used: null, max: null };
+
+function formatContext() {
+    if (lastContext.used === null) return "";
+    return lastContext.max
+        ? `[ctx ${lastContext.used}/${lastContext.max}]`
+        : `[ctx ${lastContext.used}]`;
+}
+
 function escapeHtml(str) {
     return str
         .replace(/&/g, "&amp;")
@@ -72,17 +82,42 @@ async function send(prompt) {
 
     log.innerHTML += `<div class="you">You: ${prompt}</div>`;
 
-    const res = await fetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt })
-    });
-    const data = await res.json();
+    const thinkingLine = document.createElement("div");
+    thinkingLine.className = "thinking";
+    log.appendChild(thinkingLine);
+    log.scrollTop = log.scrollHeight;
+
+    let frame = 0;
+    const renderThinking = () => {
+        thinkingLine.innerHTML =
+            `<span class="spinner">${SPINNER_FRAMES[frame % SPINNER_FRAMES.length]}</span> ` +
+            `<span class="ctx">${formatContext()}</span>`;
+        frame++;
+    };
+    renderThinking();
+    const spin = setInterval(renderThinking, 120);
+
+    let data;
+    try {
+        const res = await fetch("/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt })
+        });
+        data = await res.json();
+    } finally {
+        clearInterval(spin);
+        thinkingLine.remove();
+    }
 
     if (data.error) {
         log.innerHTML += `<div>Error: ${data.error}</div>`;
         promptInput.disabled = false;
         return;
+    }
+
+    if (data.context_used !== undefined) {
+        lastContext = { used: data.context_used, max: data.context_max };
     }
 
     // Start audio and word-by-word typing together
@@ -103,6 +138,8 @@ async function send(prompt) {
         log.scrollTop = log.scrollHeight;
         await new Promise(r => setTimeout(r, delay));
     }
+
+    sterlingLine.innerHTML += ` <span class="ctx">${formatContext()}</span>`;
 
     promptInput.disabled = false;
     promptInput.focus();

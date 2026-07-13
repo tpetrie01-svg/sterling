@@ -6,6 +6,7 @@ import re
 import requests
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
+OLLAMA_SHOW_URL = "http://localhost:11434/api/show"
 MODEL_NAME = "sterling"  # match whatever `ollama list` shows
 
 _MODELFILE_TEXT = (Path(__file__).parent / "Modelfile").read_text(encoding="utf-8")
@@ -15,8 +16,29 @@ PERSONA = re.search(r'SYSTEM """(.*?)"""', _MODELFILE_TEXT, re.DOTALL).group(1).
 # bit of context (persona included) has to be merged into a single system
 # message per turn instead of appended as separate ones.
 
+_context_length = None  # cached max context window for MODEL_NAME, lazily resolved
 
-def get_response(prompt: str, history: list, search_context: str = "", memories: list = None, search_error: str = None, weather_context: str = "", weather_error: str = None) -> str:
+
+def get_context_length() -> int | None:
+    """Best-effort lookup of the model's max context window, for displaying
+    context usage as a fraction. Cached after the first successful call."""
+    global _context_length
+    if _context_length is not None:
+        return _context_length
+    try:
+        r = requests.post(OLLAMA_SHOW_URL, json={"model": MODEL_NAME}, timeout=5)
+        r.raise_for_status()
+        model_info = r.json().get("model_info", {})
+        for key, value in model_info.items():
+            if key.endswith("context_length"):
+                _context_length = int(value)
+                break
+    except Exception:
+        pass
+    return _context_length
+
+
+def get_response(prompt: str, history: list, search_context: str = "", memories: list = None, search_error: str = None, weather_context: str = "", weather_error: str = None) -> tuple[str, int]:
     """history is a list of {"role": "user"|"assistant", "content": str} turns,
     oldest first. Mutated by the caller between calls, not by this function."""
     messages = list(history)
@@ -57,7 +79,9 @@ def get_response(prompt: str, history: list, search_context: str = "", memories:
         "stream": False
     })
     r.raise_for_status()
-    return r.json()["message"]["content"]
+    data = r.json()
+    context_used = data.get("prompt_eval_count", 0) + data.get("eval_count", 0)
+    return data["message"]["content"], context_used
 
 
 _FACT_EXTRACT_SYSTEM = (

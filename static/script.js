@@ -120,6 +120,18 @@ async function send(prompt) {
         lastContext = { used: data.context_used, max: data.context_max };
     }
 
+    if (data.thinking) {
+        const thoughtBlock = document.createElement("details");
+        thoughtBlock.className = "thought";
+        const summary = document.createElement("summary");
+        summary.textContent = "Thinking";
+        const body = document.createElement("div");
+        body.className = "thought-body";
+        body.innerHTML = renderMarkdown(data.thinking);
+        thoughtBlock.append(summary, body);
+        log.appendChild(thoughtBlock);
+    }
+
     // Start audio and word-by-word typing together
     player.src = data.audio;
     player.play();

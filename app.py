@@ -52,7 +52,7 @@ def chat():
         search_context, search_error = web_search(prompt) if needs_search(prompt) else ("", None)
 
     recalled = memory.relevant(prompt)
-    reply, context_used = get_response(prompt, HISTORY, search_context, recalled, search_error, weather_context, weather_error)
+    reply, thinking, context_used = get_response(prompt, HISTORY, search_context, recalled, search_error, weather_context, weather_error)
 
     threading.Thread(target=_remember_async, args=(prompt, reply), daemon=True).start()
 
@@ -68,6 +68,7 @@ def chat():
 
     return jsonify({
         "reply": reply,
+        "thinking": thinking,
         "duration": duration,
         "audio": f"/audio/{token}",
         "context_used": context_used,

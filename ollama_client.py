@@ -16,29 +16,37 @@ PERSONA = re.search(r'SYSTEM """(.*?)"""', _MODELFILE_TEXT, re.DOTALL).group(1).
 # bit of context (persona included) has to be merged into a single system
 # message per turn instead of appended as separate ones.
 
-_context_length = None  # cached max context window for MODEL_NAME, lazily resolved
+_model_meta = None  # cached {"context_length": int|None, "thinking": bool} for MODEL_NAME
 
 
-def get_context_length() -> int | None:
-    """Best-effort lookup of the model's max context window, for displaying
-    context usage as a fraction. Cached after the first successful call."""
-    global _context_length
-    if _context_length is not None:
-        return _context_length
+def _get_model_meta() -> dict:
+    """Best-effort lookup of the model's max context window and whether it
+    supports exposing a separate reasoning/thinking trace. Cached after the
+    first successful call."""
+    global _model_meta
+    if _model_meta is not None:
+        return _model_meta
+    meta = {"context_length": None, "thinking": False}
     try:
         r = requests.post(OLLAMA_SHOW_URL, json={"model": MODEL_NAME}, timeout=5)
         r.raise_for_status()
-        model_info = r.json().get("model_info", {})
-        for key, value in model_info.items():
+        info = r.json()
+        for key, value in info.get("model_info", {}).items():
             if key.endswith("context_length"):
-                _context_length = int(value)
+                meta["context_length"] = int(value)
                 break
+        meta["thinking"] = "thinking" in (info.get("capabilities") or [])
     except Exception:
         pass
-    return _context_length
+    _model_meta = meta
+    return meta
 
 
-def get_response(prompt: str, history: list, search_context: str = "", memories: list = None, search_error: str = None, weather_context: str = "", weather_error: str = None) -> tuple[str, int]:
+def get_context_length() -> int | None:
+    return _get_model_meta()["context_length"]
+
+
+def get_response(prompt: str, history: list, search_context: str = "", memories: list = None, search_error: str = None, weather_context: str = "", weather_error: str = None) -> tuple[str, str, int]:
     """history is a list of {"role": "user"|"assistant", "content": str} turns,
     oldest first. Mutated by the caller between calls, not by this function."""
     messages = list(history)
@@ -73,15 +81,20 @@ def get_response(prompt: str, history: list, search_context: str = "", memories:
     messages.append({"role": "system", "content": "\n\n".join(system_parts)})
     messages.append({"role": "user", "content": prompt})
 
-    r = requests.post(OLLAMA_URL, json={
+    payload = {
         "model": MODEL_NAME,
         "messages": messages,
-        "stream": False
-    })
+        "stream": False,
+    }
+    if _get_model_meta()["thinking"]:
+        payload["think"] = True
+
+    r = requests.post(OLLAMA_URL, json=payload)
     r.raise_for_status()
     data = r.json()
     context_used = data.get("prompt_eval_count", 0) + data.get("eval_count", 0)
-    return data["message"]["content"], context_used
+    message = data["message"]
+    return message["content"], message.get("thinking", ""), context_used
 
 
 _FACT_EXTRACT_SYSTEM = (

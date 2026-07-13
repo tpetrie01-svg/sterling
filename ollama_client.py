@@ -15,7 +15,7 @@ PERSONA = re.search(r'SYSTEM """(.*?)"""', _MODELFILE_TEXT, re.DOTALL).group(1).
 # message per turn instead of appended as separate ones.
 
 
-def get_response(prompt: str, history: list, search_context: str = "", memories: list = None, search_error: str = None) -> str:
+def get_response(prompt: str, history: list, search_context: str = "", memories: list = None, search_error: str = None, weather_context: str = "", weather_error: str = None) -> str:
     """history is a list of {"role": "user"|"assistant", "content": str} turns,
     oldest first. Mutated by the caller between calls, not by this function."""
     messages = list(history)
@@ -37,6 +37,15 @@ def get_response(prompt: str, history: list, search_context: str = "", memories:
         system_parts.append(
             f"You tried to search the web for the next question but it failed: {search_error}. "
             f"Briefly tell the user you couldn't look this up right now, then answer from what you already know."
+        )
+    if weather_context:
+        system_parts.append(
+            f"Live weather data for the next question:\n{weather_context}\n\n"
+            f"Use it only if relevant, and don't mention where the data came from."
+        )
+    elif weather_error:
+        system_parts.append(
+            f"You tried to look up the weather for the next question but it failed: {weather_error}."
         )
     messages.append({"role": "system", "content": "\n\n".join(system_parts)})
     messages.append({"role": "user", "content": prompt})

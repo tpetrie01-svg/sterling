@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 TRIGGER_WORDS = (
     "today", "tonight", "yesterday", "tomorrow", "this week", "this month", "this year",
     "latest", "current", "currently", "recent", "recently", "now",
-    "news", "weather", "score", "price", "stock", "release date",
+    "news", "score", "price", "stock", "release date",
     "who is", "who won", "what happened",
     # explicit search intent, regardless of whether the topic is time-sensitive
     "search", "look up", "look that up", "look it up", "google",

@@ -3,6 +3,7 @@ from ollama_client import get_response
 from voice import synthesize, get_wav_duration
 from stt import transcribe
 from search import needs_search, web_search
+from weather import needs_weather, get_weather
 import memory
 from pathlib import Path
 import tempfile
@@ -36,9 +37,15 @@ def chat():
     if fact:
         memory.add(fact)
 
-    context, search_error = web_search(prompt) if needs_search(prompt) else ("", None)
+    if needs_weather(prompt):
+        weather_context, weather_error = get_weather(prompt)
+        search_context, search_error = "", None
+    else:
+        weather_context, weather_error = "", None
+        search_context, search_error = web_search(prompt) if needs_search(prompt) else ("", None)
+
     recalled = memory.relevant(prompt)
-    reply = get_response(prompt, HISTORY, context, recalled, search_error)
+    reply = get_response(prompt, HISTORY, search_context, recalled, search_error, weather_context, weather_error)
 
     HISTORY.append({"role": "user", "content": prompt})
     HISTORY.append({"role": "assistant", "content": reply})

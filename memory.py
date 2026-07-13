@@ -39,7 +39,18 @@ STOPWORDS = {
 def _load_full() -> list[dict]:
     if not MEMORY_FILE.is_file():
         return []
-    return json.loads(MEMORY_FILE.read_text())
+    memories = json.loads(MEMORY_FILE.read_text())
+    changed = False
+    for m in memories:
+        if "last_used" not in m:
+            m["last_used"] = m.get("ts", datetime.now(timezone.utc).isoformat())
+            changed = True
+        if "critical" not in m:
+            m["critical"] = _looks_critical(m["text"])
+            changed = True
+    if changed:
+        _save(memories)
+    return memories
 
 
 def _save(memories: list[dict]) -> None:
@@ -115,26 +126,33 @@ def add(fact: str, critical: bool | None = None) -> None:
 
 
 def relevant(prompt: str, max_results: int = 5) -> list[str]:
-    """Return stored facts that share keywords with prompt, most-overlap first.
-    Touches last_used on returned facts so they're protected from decay."""
+    """Return facts worth surfacing for this prompt: every critical fact
+    (always in context, regardless of keyword overlap - that's what "never
+    forgotten" means) plus the top keyword-matched non-critical facts.
+    Touches last_used on everything returned so it stays protected from decay."""
     prompt_words = _tokens(prompt)
-    if not prompt_words:
-        return []
 
     with _LOCK:
         memories = _load_full()
+
+        critical = [m for m in memories if m.get("critical")]
+
         scored = []
         for m in memories:
+            if m.get("critical") or not prompt_words:
+                continue
             overlap = len(prompt_words & _tokens(m["text"]))
             if overlap:
                 scored.append((overlap, m))
         scored.sort(key=lambda pair: pair[0], reverse=True)
-        top = scored[:max_results]
+        matched = [m for _, m in scored[:max(0, max_results - len(critical))]]
 
-        if top:
+        chosen = critical + matched
+
+        if chosen:
             now = datetime.now(timezone.utc).isoformat()
-            for _, m in top:
+            for m in chosen:
                 m["last_used"] = now
             _save(memories)
 
-        return [m["text"] for _, m in top]
+        return [m["text"] for m in chosen]

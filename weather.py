@@ -14,7 +14,16 @@ WEATHER_WORDS = (
 )
 
 LOCATION_RE = re.compile(
-    r"\b(?:weather|forecast|temperature)\b.*?\b(?:in|for|at)\s+([A-Za-z][A-Za-z\s,.'-]*)",
+    r"\b(?:weather|forecast|temperature|raining|snowing|rain|snow|"
+    r"hot|cold|humid|humidity|windy|wind)\b.*?\b(?:in|for|at)\s+([A-Za-z][A-Za-z\s,.'-]*)",
+    re.IGNORECASE,
+)
+
+# words that can trail a location mention but aren't part of the place name,
+# e.g. "weather in Chicago right now" -> strip "right now"
+TRAILING_FILLER_RE = re.compile(
+    r"\s*\b(?:right now|outside|currently|today|tonight|this week|"
+    r"this weekend|tomorrow|please|now)\b\s*$",
     re.IGNORECASE,
 )
 
@@ -43,7 +52,11 @@ def _extract_location(prompt: str) -> str | None:
     m = LOCATION_RE.search(prompt)
     if not m:
         return None
-    loc = m.group(1).strip(" .,'\"")
+    loc = m.group(1).strip(" .,'\"?!")
+    prev = None
+    while prev != loc:
+        prev = loc
+        loc = TRAILING_FILLER_RE.sub("", loc).strip(" .,'\"?!")
     return loc or None
 
 
